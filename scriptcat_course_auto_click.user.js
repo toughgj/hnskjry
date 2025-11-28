@@ -97,7 +97,8 @@
             floatingWindow.remove();
         }
         
-        // 查找下一页按钮，检查是否存在
+        // 查找上一页和下一页按钮，检查是否存在
+        const hasPrevPage = !!document.querySelector('.prev.ng-binding');
         const hasNextPage = !!document.querySelector('.next.ng-binding');
         
         // 创建漂浮窗口元素
@@ -158,10 +159,12 @@
             </div>
             
             <div style="font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
+                <div>上一页按钮：<span style="color: ${hasPrevPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasPrevPage ? '已找到' : '未找到'}</span></div>
                 <div>下一页按钮：<span style="color: ${hasNextPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasNextPage ? '已找到' : '未找到'}</span></div>
-                <div style="margin-top: 5px; display: flex; align-items: center;">
-                    <button id="test-next-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 11px; margin-right: 10px;">测试下一页</button>
-                    <span>提示：当前页面课程完成后${hasNextPage ? '将自动翻页' : '无下一页'}</span>
+                <div style="margin-top: 5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <button id="test-prev-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 11px;">测试上一页</button>
+                    <button id="test-next-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 11px;">测试下一页</button>
+                    <span style="flex-basis: 100%; margin-top: 5px;">提示：当前页面课程完成后${hasNextPage ? '将自动翻页' : '无下一页'}</span>
                 </div>
             </div>
         `;
@@ -219,10 +222,62 @@
             playAllCourses();
         });
         
+        // 测试上一页按钮
+        document.getElementById('test-prev-btn').addEventListener('click', () => {
+            testPrevPageBtn();
+        });
+        
         // 测试下一页按钮
         document.getElementById('test-next-btn').addEventListener('click', () => {
             testNextPageBtn();
         });
+    }
+    
+    /**
+     * 测试上一页按钮
+     */
+    function testPrevPageBtn() {
+        originalConsoleLog('测试上一页按钮...');
+        
+        // 查找上一页按钮
+        const prevPageBtn = document.querySelector('.prev.ng-binding');
+        if (!prevPageBtn) {
+            originalConsoleLog('未找到上一页按钮，无法测试');
+            alert('未找到上一页按钮，无法测试');
+            return;
+        }
+        
+        // 点击上一页按钮
+        originalConsoleLog('点击上一页按钮进行测试');
+        prevPageBtn.click();
+        
+        // 关闭当前漂浮窗口
+        if (floatingWindow) {
+            clearInterval(countdownTimer);
+            floatingWindow.remove();
+            floatingWindow = null;
+        }
+        
+        // 重置全局变量，重新初始化脚本
+        setTimeout(() => {
+            originalConsoleLog('上一页测试完成，重新初始化脚本...');
+            // 重置全局变量
+            courseQueue = [];
+            selectedCourses = [];
+            currentCourse = null;
+            currentWindow = null;
+            checkTimer = null;
+            startTime = 0;
+            messageReceived = false;
+            lastProcessTime = 0;
+            isConsoleOverridden = false;
+            isMessageListenerAdded = false;
+            countdown = 10;
+            isPaused = false;
+            
+            // 重新初始化
+            setupListPage();
+        }, config.pageLoadDelay);
     }
     
     /**
@@ -252,7 +307,7 @@
         
         // 重置全局变量，重新初始化脚本
         setTimeout(() => {
-            originalConsoleLog('翻页测试完成，重新初始化脚本...');
+            originalConsoleLog('下一页测试完成，重新初始化脚本...');
             // 重置全局变量
             courseQueue = [];
             selectedCourses = [];
