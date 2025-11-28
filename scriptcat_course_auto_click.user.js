@@ -94,6 +94,9 @@
             floatingWindow.remove();
         }
         
+        // 查找下一页按钮，检查是否存在
+        const hasNextPage = !!document.querySelector('.next.ng-binding');
+        
         // 创建漂浮窗口元素
         floatingWindow = document.createElement('div');
         floatingWindow.id = 'scriptcat-floating-window';
@@ -150,6 +153,14 @@
                     `).join('')}
                 </div>
             </div>
+            
+            <div style="font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
+                <div>下一页按钮：<span style="color: ${hasNextPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasNextPage ? '已找到' : '未找到'}</span></div>
+                <div style="margin-top: 5px; display: flex; align-items: center;">
+                    <button id="test-next-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 11px; margin-right: 10px;">测试下一页</button>
+                    <span>提示：当前页面课程完成后${hasNextPage ? '将自动翻页' : '无下一页'}</span>
+                </div>
+            </div>
         `;
         
         // 添加到页面
@@ -204,6 +215,58 @@
         document.getElementById('play-all').addEventListener('click', () => {
             playAllCourses();
         });
+        
+        // 测试下一页按钮
+        document.getElementById('test-next-btn').addEventListener('click', () => {
+            testNextPageBtn();
+        });
+    }
+    
+    /**
+     * 测试下一页按钮
+     */
+    function testNextPageBtn() {
+        originalConsoleLog('测试下一页按钮...');
+        
+        // 查找下一页按钮
+        const nextPageBtn = document.querySelector('.next.ng-binding');
+        if (!nextPageBtn) {
+            originalConsoleLog('未找到下一页按钮，无法测试');
+            alert('未找到下一页按钮，无法测试');
+            return;
+        }
+        
+        // 点击下一页按钮
+        originalConsoleLog('点击下一页按钮进行测试');
+        nextPageBtn.click();
+        
+        // 关闭当前漂浮窗口
+        if (floatingWindow) {
+            clearInterval(countdownTimer);
+            floatingWindow.remove();
+            floatingWindow = null;
+        }
+        
+        // 重置全局变量，重新初始化脚本
+        setTimeout(() => {
+            originalConsoleLog('翻页测试完成，重新初始化脚本...');
+            // 重置全局变量
+            courseQueue = [];
+            selectedCourses = [];
+            currentCourse = null;
+            currentWindow = null;
+            checkTimer = null;
+            startTime = 0;
+            messageReceived = false;
+            lastProcessTime = 0;
+            isConsoleOverridden = false;
+            isMessageListenerAdded = false;
+            countdown = 10;
+            isPaused = false;
+            
+            // 重新初始化
+            setupListPage();
+        }, config.pageLoadDelay);
     }
     
     /**
@@ -307,12 +370,15 @@
         originalConsoleLog('找到目标table元素:');
         
         // 收集未完成课程
-        collectUnfinishedCourses(table);
+        const allCompleted = collectUnfinishedCourses(table);
         
         // 如果有未完成课程，显示漂浮窗口
         if (courseQueue.length > 0) {
             originalConsoleLog(`共找到${courseQueue.length}个未完成课程，显示控制窗口...`);
             createFloatingWindow();
+        } else if (allCompleted) {
+            // 当前页面所有课程都是100%，尝试翻页
+            checkAndTurnPage();
         } else {
             originalConsoleLog('所有课程已完成，无需处理');
         }
@@ -401,6 +467,7 @@
     /**
      * 收集未完成课程
      * @param {HTMLElement} table - 课程表格元素
+     * @returns {boolean} - 当前页面是否所有课程都是100%
      */
     function collectUnfinishedCourses(table) {
         // 获取所有课程行
@@ -461,6 +528,9 @@
                 }
             }
         });
+        
+        // 检测当前页面是否所有课程都是100%
+        return courseRows.length > 0 && courseQueue.length === 0;
     }
 
     /**
@@ -490,6 +560,47 @@
         
         isConsoleOverridden = true;
         originalConsoleLog('已设置console事件监听');
+    }
+    
+    /**
+     * 检查并执行翻页
+     */
+    function checkAndTurnPage() {
+        originalConsoleLog('当前页面所有课程已完成，尝试翻页...');
+        
+        // 查找下一页按钮
+        const nextPageBtn = document.querySelector('.next.ng-binding');
+        if (!nextPageBtn) {
+            originalConsoleLog('未找到下一页按钮');
+            return false;
+        }
+        
+        // 点击下一页
+        originalConsoleLog('点击下一页按钮');
+        nextPageBtn.click();
+        
+        // 翻页后重新初始化脚本
+        setTimeout(() => {
+            originalConsoleLog('翻页完成，重新初始化脚本...');
+            // 重置全局变量
+            courseQueue = [];
+            selectedCourses = [];
+            currentCourse = null;
+            currentWindow = null;
+            checkTimer = null;
+            startTime = 0;
+            messageReceived = false;
+            lastProcessTime = 0;
+            isConsoleOverridden = false;
+            isMessageListenerAdded = false;
+            countdown = 10;
+            isPaused = false;
+            
+            // 重新初始化
+            setupListPage();
+        }, config.pageLoadDelay);
+        
+        return true;
     }
 
     /**
