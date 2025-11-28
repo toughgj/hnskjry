@@ -24,7 +24,7 @@
         // 检测播放完成的间隔时间（毫秒）
         checkInterval: 2000,
         // 最大等待时间（毫秒），防止单个课程卡住
-        maxWaitTime: 3600000 // 1小时
+        maxWaitTime: 7200000 // 2小时
     };
 
     // 全局变量
@@ -746,7 +746,7 @@
         // 使用原始console.log输出，避免循环调用
         originalConsoleLog('开始检测播放完成事件');
         
-        // 设置定时器，定期检测
+        // 设置定时器，定期检测（1分钟更新一次）
         checkTimer = setInterval(() => {
             // 检查是否超过最大等待时间
             if (Date.now() - startTime > config.maxWaitTime) {
@@ -761,7 +761,7 @@
             // 这里可以添加其他检测逻辑，比如检查当前窗口状态
             // 由于浏览器安全限制，可能无法直接访问跨域窗口的内容
             
-        }, config.checkInterval);
+        }, 60000); // 1分钟更新一次
     }
 
     /**
