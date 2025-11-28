@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         自动播放未完成课程（串行处理）
 // @namespace    http://tampermonkey.net/
-// @version      0.4
+// @version      0.5
 // @description  串行处理未完成课程，监听播放完成事件，一次只打开一个页面
 // @author       You
 // @match        *://*/*
