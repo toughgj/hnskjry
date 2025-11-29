@@ -389,9 +389,6 @@
         clearInterval(countdownTimer);
         
         // 开始处理课程
-        originalConsoleLog(`共找到${courseQueue.length}个未完成课程，开始串行处理...`);
-        // 移除setupConsoleListener()调用，因为它无法检测到播放页面的控制台输出
-        // 只依赖播放页面发送的COURSE_PLAY_COMPLETE消息
         processNextCourse();
     }
     
@@ -399,48 +396,51 @@
      * 设置列表页面的处理逻辑
      */
     function setupListPage() {
-        // 使用原始console.log输出，避免循环调用
-        originalConsoleLog('设置列表页面处理逻辑...');
+        // 添加重试计数
+        let retryCount = 0;
+        const maxRetries = 10;
+        const retryInterval = 1000; // 1秒重试一次
         
-        // 尝试多种选择器获取目标div元素
-        const tabBd = document.querySelector('.tab-bd') || 
-                     document.querySelector('[ng-show*="notPass"]') ||
-                     document.querySelector('.tab-bd[ng-show]');
-        
-        if (!tabBd) {
-            originalConsoleLog('未找到目标div元素，500毫秒后重试...');
-            setTimeout(setupListPage, 500);
-            return;
-        }
+        function trySetup() {
+            retryCount++;
+            
+            // 尝试多种选择器获取目标div元素
+            const tabBd = document.querySelector('.tab-bd') || 
+                         document.querySelector('[ng-show*="notPass"]') ||
+                         document.querySelector('.tab-bd[ng-show]');
+            
+            if (!tabBd) {
+                if (retryCount < maxRetries) {
+                    setTimeout(trySetup, retryInterval);
+                }
+                return;
+            }
 
-        originalConsoleLog('找到目标div元素:');
-        
-        // 尝试多种选择器获取table元素
-        const table = tabBd.querySelector('.ui-table.class-table') || 
-                     tabBd.querySelector('.ui-table') ||
-                     tabBd.querySelector('table');
-        
-        if (!table) {
-            originalConsoleLog('未找到目标table元素，500毫秒后重试...');
-            setTimeout(setupListPage, 500);
-            return;
+            // 尝试多种选择器获取table元素
+            const table = tabBd.querySelector('.ui-table.class-table') || 
+                         tabBd.querySelector('.ui-table') ||
+                         tabBd.querySelector('table');
+            
+            if (!table) {
+                if (retryCount < maxRetries) {
+                    setTimeout(trySetup, retryInterval);
+                }
+                return;
+            }
+            
+            // 收集未完成课程
+            const allCompleted = collectUnfinishedCourses(table);
+            
+            // 如果有未完成课程，显示漂浮窗口
+            if (courseQueue.length > 0) {
+                createFloatingWindow();
+            } else if (allCompleted) {
+                // 当前页面所有课程都是100%，尝试翻页
+                checkAndTurnPage();
+            }
         }
         
-        originalConsoleLog('找到目标table元素:');
-        
-        // 收集未完成课程
-        const allCompleted = collectUnfinishedCourses(table);
-        
-        // 如果有未完成课程，显示漂浮窗口
-        if (courseQueue.length > 0) {
-            originalConsoleLog(`共找到${courseQueue.length}个未完成课程，显示控制窗口...`);
-            createFloatingWindow();
-        } else if (allCompleted) {
-            // 当前页面所有课程都是100%，尝试翻页
-            checkAndTurnPage();
-        } else {
-            originalConsoleLog('所有课程已完成，无需处理');
-        }
+        trySetup();
     }
 
     /**
@@ -577,8 +577,6 @@
     function collectUnfinishedCourses(table) {
         // 获取所有课程行
         const courseRows = table.querySelectorAll('tbody tr');
-        // 使用原始console.log输出，避免循环调用
-        originalConsoleLog(`找到${courseRows.length}个课程`);
 
         // 遍历每个课程行
         courseRows.forEach((row, index) => {
@@ -592,20 +590,13 @@
                 }
             }
 
-            if (!progressSpan) {
-                originalConsoleLog(`第${index+1}行未找到课程进度元素`);
-                return;
-            }
+            if (!progressSpan) return;
 
             // 获取进度百分比
             const progressLabel = progressSpan.querySelector('label');
-            if (!progressLabel) {
-                originalConsoleLog(`第${index+1}行未找到进度百分比元素`);
-                return;
-            }
+            if (!progressLabel) return;
 
             const progressText = progressLabel.textContent.trim();
-            originalConsoleLog(`第${index+1}行课程进度：${progressText}`);
 
             // 判断进度是否为100%
             if (progressText !== '100%') {
@@ -620,7 +611,6 @@
                 }
 
                 if (learnBtn) {
-                    originalConsoleLog(`第${index+1}行添加到未完成课程队列`);
                     // 将课程信息添加到队列
                     courseQueue.push({
                         row: row,
@@ -628,8 +618,6 @@
                         progress: progressText,
                         index: index + 1
                     });
-                } else {
-                    originalConsoleLog(`第${index+1}行未找到学习课程按钮`);
                 }
             }
         });
@@ -741,7 +729,6 @@
     function processNextCourse() {
         // 如果队列为空，结束处理
         if (courseQueue.length === 0) {
-            originalConsoleLog('所有课程处理完成');
             // 恢复原始console.log
             if (isConsoleOverridden) {
                 console.log = originalConsoleLog;
@@ -757,7 +744,9 @@
         
         // 获取下一个课程
         currentCourse = courseQueue.shift();
-        originalConsoleLog(`开始处理第${currentCourse.index}个课程，进度：${currentCourse.progress}`);
+        
+        // 输出基本提示
+        originalConsoleLog(`开始播放第${currentCourse.index}个课程，进度：${currentCourse.progress}`);
         
         // 记录开始时间
         startTime = Date.now();
@@ -766,20 +755,16 @@
         if (!isMessageListenerAdded) {
             window.addEventListener('message', handleMessageEvent);
             isMessageListenerAdded = true;
-            originalConsoleLog('已添加消息事件监听器');
         }
         
         // 模拟点击学习课程按钮，打开新窗口
         try {
             // 先尝试直接点击
-            originalConsoleLog('准备点击学习课程按钮...');
             currentCourse.learnBtn.click();
-            originalConsoleLog('已点击学习课程按钮');
             
             // 开始检测播放完成
             startCheckPlayComplete();
         } catch (e) {
-            originalConsoleLog.error('打开课程失败:', e.message);
             // 继续处理下一个课程
             setTimeout(processNextCourse, config.pageLoadDelay);
         }
@@ -831,25 +816,18 @@
      * 开始检测播放完成
      */
     function startCheckPlayComplete() {
-        // 使用原始console.log输出，避免循环调用
-        originalConsoleLog('开始检测播放完成事件');
-        
-        // 设置定时器，定期检测（1分钟更新一次）
+        // 设置定时器，定期检测（5分钟更新一次）
         checkTimer = setInterval(() => {
             // 检查是否超过最大等待时间
             if (Date.now() - startTime > config.maxWaitTime) {
-                originalConsoleLog('单个课程处理超时，跳过该课程');
                 handlePlayComplete();
                 return;
             }
             
-            // 输出调试信息，显示当前状态
-            originalConsoleLog('检测播放完成中... 已等待:', Math.floor((Date.now() - startTime) / 1000), '秒');
-            
             // 这里可以添加其他检测逻辑，比如检查当前窗口状态
             // 由于浏览器安全限制，可能无法直接访问跨域窗口的内容
             
-        }, 60000); // 1分钟更新一次
+        }, 300000); // 5分钟更新一次
     }
 
     /**
