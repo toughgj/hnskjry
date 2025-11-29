@@ -455,6 +455,10 @@
             return;
         }
         
+        // 添加标志变量，用于标记是否检测到"点击下一节"
+        let hasNextSection = false;
+        let playCompleteTimeout = null;
+        
         // 发送播放完成消息的函数
         function sendPlayCompleteMessage() {
             originalConsoleLog('发送播放完成消息...');
@@ -477,17 +481,46 @@
             // 调用原始console.log，避免循环调用
             originalConsoleLog.apply(console, args);
             
+            // 检测是否包含"点击下一节"关键词
+            if (logText.includes('点击下一节')) {
+                originalConsoleLog('播放页面检测到"点击下一节"关键词，取消播放完成处理');
+                hasNextSection = true;
+                // 清除之前的定时器
+                if (playCompleteTimeout) {
+                    clearTimeout(playCompleteTimeout);
+                    playCompleteTimeout = null;
+                }
+            }
+            
             // 检测是否包含播放完成关键词
             if (isPlayComplete(logText)) {
                 // 使用原始console.log输出，避免循环调用
                 originalConsoleLog('播放页面检测到播放完成提示');
-                // 发送播放完成消息
-                sendPlayCompleteMessage();
-                // 播放完成后等待3秒再关闭窗口
-                originalConsoleLog('播放完成，3秒后关闭窗口...');
-                setTimeout(() => {
-                    window.close();
-                }, 3000);
+                
+                // 重置标志
+                hasNextSection = false;
+                
+                // 设置5秒延迟，等待可能出现的"点击下一节"关键词
+                if (playCompleteTimeout) {
+                    clearTimeout(playCompleteTimeout);
+                }
+                
+                playCompleteTimeout = setTimeout(() => {
+                    // 如果5秒内没有检测到"点击下一节"，才执行后续动作
+                    if (!hasNextSection) {
+                        originalConsoleLog('播放页面5秒内未检测到"点击下一节"关键词，发送播放完成消息');
+                        // 发送播放完成消息
+                        sendPlayCompleteMessage();
+                        // 播放完成后等待3秒再关闭窗口
+                        originalConsoleLog('播放完成，3秒后关闭窗口...');
+                        setTimeout(() => {
+                            window.close();
+                        }, 3000);
+                    } else {
+                        originalConsoleLog('播放页面5秒内检测到"点击下一节"关键词，继续播放');
+                    }
+                    playCompleteTimeout = null;
+                }, 5000);
             }
         };
         
@@ -601,6 +634,10 @@
             return;
         }
         
+        // 添加标志变量，用于标记是否检测到"点击下一节"
+        let hasNextSection = false;
+        let playCompleteTimeout = null;
+        
         // 重写console.log，检测播放完成提示
         console.log = function(...args) {
             const logText = args.join(' ');
@@ -608,11 +645,40 @@
             // 调用原始console.log，避免循环调用
             originalConsoleLog.apply(console, args);
             
+            // 检测是否包含"点击下一节"关键词
+            if (logText.includes('点击下一节')) {
+                originalConsoleLog('检测到"点击下一节"关键词，取消播放完成处理');
+                hasNextSection = true;
+                // 清除之前的定时器
+                if (playCompleteTimeout) {
+                    clearTimeout(playCompleteTimeout);
+                    playCompleteTimeout = null;
+                }
+            }
+            
             // 检测是否包含播放完成关键词
             if (isPlayComplete(logText)) {
                 // 使用原始console.log输出，避免循环调用
                 originalConsoleLog('检测到播放完成提示，准备处理下一个课程');
-                handlePlayComplete();
+                
+                // 重置标志
+                hasNextSection = false;
+                
+                // 设置5秒延迟，等待可能出现的"点击下一节"关键词
+                if (playCompleteTimeout) {
+                    clearTimeout(playCompleteTimeout);
+                }
+                
+                playCompleteTimeout = setTimeout(() => {
+                    // 如果5秒内没有检测到"点击下一节"，才执行后续动作
+                    if (!hasNextSection) {
+                        originalConsoleLog('5秒内未检测到"点击下一节"关键词，执行播放完成处理');
+                        handlePlayComplete();
+                    } else {
+                        originalConsoleLog('5秒内检测到"点击下一节"关键词，跳过播放完成处理');
+                    }
+                    playCompleteTimeout = null;
+                }, 5000);
             }
         };
         
