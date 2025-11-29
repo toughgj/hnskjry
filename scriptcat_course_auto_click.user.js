@@ -447,55 +447,76 @@
      * 设置播放页面的监听
      */
     function setupPlayPageListener() {
-        // 使用原始console.log输出，避免循环调用
         originalConsoleLog('设置播放页面监听...');
         
-        // 防止重复重写console.log
         if (isConsoleOverridden) {
             originalConsoleLog('console.log已被重写，跳过设置');
             return;
         }
         
-        // 添加标志变量
-        let hasNextSection = false; // 标记是否检测到"点击下一节"关键词
-        let hasNextButton = false; // 标记页面是否存在下一个按钮
+        // 标志变量
+        let hasNextSection = false;
+        let hasNextButton = false;
         let playCompleteTimeout = null;
+        
+        // 发送播放完成消息
+        function sendPlayCompleteMessage() {
+            originalConsoleLog('发送播放完成消息...');
+            if (window.parent !== window) {
+                window.parent.postMessage({ type: 'COURSE_PLAY_COMPLETE' }, '*');
+            }
+            if (window.opener) {
+                window.opener.postMessage({ type: 'COURSE_PLAY_COMPLETE' }, '*');
+            }
+        }
         
         // 检测下一个按钮是否存在
         function checkNextButton() {
             const nextButton = document.querySelector('.next.ng-scope');
             hasNextButton = !!nextButton;
-            originalConsoleLog(`检测下一个按钮：${hasNextButton ? '存在' : '不存在'}`);
             return hasNextButton;
         }
         
-        // 发送播放完成消息的函数
-        function sendPlayCompleteMessage() {
-            originalConsoleLog('发送播放完成消息...');
-            // 向父窗口发送消息（如果是在iframe中）
-            if (window.parent !== window) {
-                originalConsoleLog('向父窗口发送消息');
-                window.parent.postMessage({ type: 'COURSE_PLAY_COMPLETE' }, '*');
+        // 播放完成处理逻辑
+        function handlePlayCompleteLogic(source, timer = null) {
+            // 多次检测下一个按钮，确保准确判断
+            let nextButtonExists = false;
+            for (let i = 0; i < 3; i++) {
+                if (checkNextButton()) {
+                    nextButtonExists = true;
+                    break;
+                }
             }
-            // 同时向 opener 窗口发送消息（如果是通过 window.open 打开的）
-            if (window.opener) {
-                originalConsoleLog('向opener窗口发送消息');
-                window.opener.postMessage({ type: 'COURSE_PLAY_COMPLETE' }, '*');
+            
+            // 检测视频播放状态
+            const video = document.querySelector('video');
+            // 如果没有video元素，或者视频已播放到最后1秒，认为视频已播放完成
+            const isVideoComplete = !video || (video.readyState >= 3 && video.currentTime >= video.duration - 1);
+            
+            // 只有在没有下一节且没有下一个按钮时，才执行播放完成的后续动作
+            // 当没有video元素时，认为视频已播放完成
+            if (!hasNextSection && !nextButtonExists) {
+                originalConsoleLog(`${source}10秒内未检测到"点击下一节"关键词且没有下一个按钮且视频已播放完成，发送播放完成消息`);
+                if (timer) clearInterval(timer);
+                sendPlayCompleteMessage();
+                originalConsoleLog('播放完成，3秒后关闭窗口...');
+                setTimeout(() => window.close(), 3000);
+            } else {
+                originalConsoleLog(`${source}10秒内${hasNextSection ? '检测到"点击下一节"关键词' : ''}${hasNextSection && nextButtonExists ? '且' : ''}${nextButtonExists ? '存在下一个按钮' : ''}，继续播放`);
+                hasNextSection = false;
             }
+            playCompleteTimeout = null;
         }
         
         // 重写console.log，检测播放完成提示
         console.log = function(...args) {
             const logText = args.join(' ');
-            
-            // 调用原始console.log，避免循环调用
             originalConsoleLog.apply(console, args);
             
             // 检测是否包含"点击下一节"关键词
             if (logText.includes('点击下一节')) {
                 originalConsoleLog('播放页面检测到"点击下一节"关键词，取消播放完成处理');
                 hasNextSection = true;
-                // 清除之前的定时器
                 if (playCompleteTimeout) {
                     clearTimeout(playCompleteTimeout);
                     playCompleteTimeout = null;
@@ -504,134 +525,47 @@
             
             // 检测是否包含播放完成关键词
             if (isPlayComplete(logText)) {
-                // 使用原始console.log输出，避免循环调用
                 originalConsoleLog('播放页面检测到播放完成提示');
                 
-                // 不再立即重置hasNextSection，而是在延迟定时器中根据实际情况判断
-                
                 // 设置10秒延迟，等待可能出现的"点击下一节"关键词
-                if (playCompleteTimeout) {
-                    clearTimeout(playCompleteTimeout);
-                }
-                
-                playCompleteTimeout = setTimeout(() => {
-                    // 多次检测下一个按钮是否存在，确保准确判断
-                    let nextButtonExists = false;
-                    for (let i = 0; i < 3; i++) {
-                        if (checkNextButton()) {
-                            nextButtonExists = true;
-                            break;
-                        }
-                        // 每次检测间隔100毫秒
-                        originalConsoleLog(`第${i+1}次检测下一个按钮...`);
-                    }
-                    
-                    // 检测视频播放状态
-                    const video = document.querySelector('video');
-                    const isVideoComplete = !video || (video.readyState >= 4 && video.currentTime >= video.duration - 1);
-                    
-                    // 如果10秒内没有检测到"点击下一节"且没有下一个按钮且视频已播放完成，才执行后续动作
-                    if (!hasNextSection && !nextButtonExists && isVideoComplete) {
-                        originalConsoleLog('播放页面10秒内未检测到"点击下一节"关键词且没有下一个按钮且视频已播放完成，发送播放完成消息');
-                        // 发送播放完成消息
-                        sendPlayCompleteMessage();
-                        // 播放完成后等待3秒再关闭窗口
-                        originalConsoleLog('播放完成，3秒后关闭窗口...');
-                        setTimeout(() => {
-                            window.close();
-                        }, 3000);
-                    } else {
-                        originalConsoleLog(`播放页面10秒内${hasNextSection ? '检测到"点击下一节"关键词' : ''}${hasNextSection && nextButtonExists ? '且' : ''}${nextButtonExists ? '存在下一个按钮' : ''}${(hasNextSection || nextButtonExists) && !isVideoComplete ? '且视频未播放完成' : ''}，继续播放`);
-                        // 重置hasNextSection，准备下一次检测
-                        hasNextSection = false;
-                    }
-                    playCompleteTimeout = null;
-                }, 10000);
+                if (playCompleteTimeout) clearTimeout(playCompleteTimeout);
+                playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('播放页面'), 10000);
             }
         };
         
         isConsoleOverridden = true;
         
-        // 同时添加定时器检测，防止console.log没有触发
+        // 定时器检测，防止console.log没有触发
         let playCheckTimer = setInterval(() => {
-            // 检测下一个按钮是否存在
             checkNextButton();
             
-            // 可以添加其他检测逻辑，比如检查播放进度条
-            // 示例：检查是否有播放完成的DOM元素
+            // 检查是否有播放完成的DOM元素
             const completeElement = document.querySelector('.play-complete, .course-finished');
             if (completeElement) {
-                // 使用原始console.log输出，避免循环调用
                 originalConsoleLog('通过DOM元素检测到播放完成');
                 
-                // 不再立即重置hasNextSection，而是在延迟定时器中根据实际情况判断
-                
                 // 设置10秒延迟，等待可能出现的"点击下一节"关键词
-                if (playCompleteTimeout) {
-                    clearTimeout(playCompleteTimeout);
-                }
-                
-                playCompleteTimeout = setTimeout(() => {
-                    // 多次检测下一个按钮是否存在，确保准确判断
-                    let nextButtonExists = false;
-                    for (let i = 0; i < 3; i++) {
-                        if (checkNextButton()) {
-                            nextButtonExists = true;
-                            break;
-                        }
-                        // 每次检测间隔100毫秒
-                        originalConsoleLog(`第${i+1}次检测下一个按钮...`);
-                    }
-                    
-                    // 检测视频播放状态
-                    const video = document.querySelector('video');
-                    const isVideoComplete = !video || (video.readyState >= 4 && video.currentTime >= video.duration - 1);
-                    
-                    // 如果10秒内没有检测到"点击下一节"且没有下一个按钮且视频已播放完成，才执行后续动作
-                    if (!hasNextSection && !nextButtonExists && isVideoComplete) {
-                        originalConsoleLog('10秒内未检测到"点击下一节"关键词且没有下一个按钮且视频已播放完成，通过DOM元素检测执行播放完成处理');
-                        clearInterval(playCheckTimer);
-                        // 发送播放完成消息
-                        sendPlayCompleteMessage();
-                        // 播放完成后等待3秒再关闭窗口
-                        originalConsoleLog('播放完成，3秒后关闭窗口...');
-                        setTimeout(() => {
-                            window.close();
-                        }, 3000);
-                    } else {
-                        originalConsoleLog(`10秒内${hasNextSection ? '检测到"点击下一节"关键词' : ''}${hasNextSection && nextButtonExists ? '且' : ''}${nextButtonExists ? '存在下一个按钮' : ''}${(hasNextSection || nextButtonExists) && !isVideoComplete ? '且视频未播放完成' : ''}，继续播放`);
-                        // 重置hasNextSection，准备下一次检测
-                        hasNextSection = false;
-                    }
-                    playCompleteTimeout = null;
-                }, 10000);
+                if (playCompleteTimeout) clearTimeout(playCompleteTimeout);
+                playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('', playCheckTimer), 10000);
             }
         }, config.checkInterval);
         
-        // 监听窗口关闭事件，确保发送播放完成消息
+        // 监听窗口关闭事件
         window.addEventListener('beforeunload', () => {
-            // 检测下一个按钮是否存在
             checkNextButton();
             
-            // 只有在真正完成播放时才发送消息，避免在有下一节时发送
-            // 增加额外的检测条件：只有在没有定时器且没有下一节时才发送消息
+            // 只有在真正完成播放时才发送消息
             if (playCompleteTimeout === null && !hasNextSection && !hasNextButton) {
-                // 增加视频播放状态检测，确保只有在视频真的播放完成时才发送消息
                 const video = document.querySelector('video');
                 const isVideoComplete = !video || (video.readyState >= 4 && video.currentTime >= video.duration - 1);
                 
                 if (isVideoComplete) {
                     originalConsoleLog('窗口即将关闭，视频已播放完成，发送播放完成消息...');
                     sendPlayCompleteMessage();
-                } else {
-                    originalConsoleLog('窗口即将关闭，但视频未播放完成，不发送播放完成消息...');
                 }
-            } else {
-                originalConsoleLog(`窗口即将关闭，但${hasNextSection ? '检测到"点击下一节"关键词' : ''}${hasNextSection && hasNextButton ? '且' : ''}${hasNextButton ? '存在下一个按钮' : ''}，不发送播放完成消息...`);
             }
         });
         
-        // 使用原始console.log输出，避免循环调用
         originalConsoleLog('播放页面监听设置完成');
     }
 
