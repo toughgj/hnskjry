@@ -745,11 +745,11 @@
             if (isPlayComplete(logText)) {
                 originalConsoleLog('播放页面检测到播放完成提示');
                 
-                // 设置10秒延迟，等待可能出现的"点击下一节"关键词
+                // 设置30秒延迟，等待可能出现的"点击下一节"关键词
                 if (appState.playPageResources.playCompleteTimeout) {
                     clearTimeout(appState.playPageResources.playCompleteTimeout);
                 }
-                appState.playPageResources.playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('播放页面'), 10000);
+                appState.playPageResources.playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('播放页面'), 30000);
             }
         };
         
@@ -765,11 +765,11 @@
             if (completeElement) {
                 originalConsoleLog('通过DOM元素检测到播放完成');
                 
-                // 设置10秒延迟，等待可能出现的"点击下一节"关键词
+                // 设置30秒延迟，等待可能出现的"点击下一节"关键词
                 if (appState.playPageResources.playCompleteTimeout) {
                     clearTimeout(appState.playPageResources.playCompleteTimeout);
                 }
-                appState.playPageResources.playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('', appState.playPageResources.playCheckTimer), 10000);
+                appState.playPageResources.playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('', appState.playPageResources.playCheckTimer), 30000);
             }
         }, Math.max(config.checkInterval, 5000)); // 至少5秒检测一次，减少CPU占用
         
