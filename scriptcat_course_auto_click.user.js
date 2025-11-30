@@ -51,6 +51,27 @@
      * 初始化脚本
      */
     function initScript() {
+        // 重写console.log，将日志显示到悬浮窗
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            
+            // 将日志添加到悬浮窗
+            const logContainer = document.getElementById('log-container');
+            if (logContainer) {
+                const logEntry = document.createElement('div');
+                logEntry.textContent = new Date().toLocaleTimeString() + ': ' + args.join(' ');
+                logContainer.appendChild(logEntry);
+                // 滚动到底部
+                logContainer.scrollTop = logContainer.scrollHeight;
+                
+                // 限制日志数量，最多显示50条
+                if (logContainer.children.length > 50) {
+                    logContainer.removeChild(logContainer.firstChild);
+                }
+            }
+        };
+        
         // 使用原始console.log输出，避免循环调用
         originalConsoleLog('脚本初始化...');
         
@@ -135,54 +156,67 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             z-index: 9999;
             font-family: Arial, sans-serif;
-            padding: 15px;
             color: #333;
+            overflow: hidden;
         `;
         
         // 构建HTML结构
         floatingWindow.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 style="margin: 0; color: #4CAF50;">自动播放控制</h3>
-                <button id="close-btn" style="background: #f44336; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">关闭</button>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <div style="font-size: 14px; margin-bottom: 5px;">倒计时：<span id="countdown" style="font-size: 24px; font-weight: bold; color: #4CAF50;">${countdown}</span>秒</div>
-                <div style="display: flex; gap: 10px;">
-                    <button id="pause-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">暂停</button>
-                    <button id="play-btn" style="background: #4CAF50; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">开始</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #4CAF50; color: white;">
+                <h3 style="margin: 0; font-size: 14px;">自动播放控制</h3>
+                <div style="display: flex; gap: 5px;">
+                    <button id="collapse-btn" style="background: rgba(255, 255, 255, 0.2); color: white; border: none; border-radius: 4px; padding: 3px 6px; cursor: pointer; font-size: 12px;">折叠</button>
+                    <button id="close-btn" style="background: rgba(255, 255, 255, 0.2); color: white; border: none; border-radius: 4px; padding: 3px 6px; cursor: pointer; font-size: 12px;">关闭</button>
                 </div>
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <label style="font-size: 14px;"><input type="checkbox" id="select-all" style="margin-right: 5px;"> 全选</label>
+            <div id="window-content" style="padding: 15px; max-height: 400px; overflow-y: auto;">
+                <div style="margin-bottom: 15px;">
+                    <div style="font-size: 14px; margin-bottom: 5px;">倒计时：<span id="countdown" style="font-size: 24px; font-weight: bold; color: #4CAF50;">${countdown}</span>秒</div>
                     <div style="display: flex; gap: 10px;">
-                        <button id="play-selected" style="background: #FF9800; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px;">播放选中</button>
-                        <button id="play-all" style="background: #4CAF50; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px;">播放全部</button>
+                        <button id="pause-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">暂停</button>
+                        <button id="play-btn" style="background: #4CAF50; color: white; border: none; border-radius: 4px; padding: 8px 12px; cursor: pointer;">开始</button>
                     </div>
                 </div>
                 
-                <div id="course-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;">
-                    ${courseQueue.map((course, index) => `
-                        <div style="margin-bottom: 8px; display: flex; align-items: center;">
-                            <input type="checkbox" class="course-checkbox" data-index="${index}" style="margin-right: 10px;">
-                            <span style="font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                ${index + 1}. ${course.learnBtn.closest('tr').querySelector('.tit a').textContent.trim()}
-                            </span>
-                            <span style="font-size: 11px; color: #666; margin-left: 10px;">进度: ${course.progress}</span>
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="font-size: 14px;"><input type="checkbox" id="select-all" style="margin-right: 5px;"> 全选</label>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="play-selected" style="background: #FF9800; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px;">播放选中</button>
+                            <button id="play-all" style="background: #4CAF50; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px;">播放全部</button>
                         </div>
-                    `).join('')}
+                    </div>
+                    
+                    <div id="course-list" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;">
+                        ${courseQueue.map((course, index) => `
+                            <div style="margin-bottom: 8px; display: flex; align-items: center;">
+                                <input type="checkbox" class="course-checkbox" data-index="${index}" style="margin-right: 10px;">
+                                <span style="font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    ${index + 1}. ${course.learnBtn.closest('tr').querySelector('.tit a').textContent.trim()}
+                                </span>
+                                <span style="font-size: 11px; color: #666; margin-left: 10px;">进度: ${course.progress}</span>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
-            </div>
-            
-            <div style="font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
-                <div>上一页按钮：<span style="color: ${hasPrevPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasPrevPage ? '已找到' : '未找到'}</span></div>
-                <div>下一页按钮：<span style="color: ${hasNextPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasNextPage ? '已找到' : '未找到'}</span></div>
-                <div style="margin-top: 5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <button id="test-prev-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 11px;">测试上一页</button>
-                    <button id="test-next-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 11px;">测试下一页</button>
-                    <span style="flex-basis: 100%; margin-top: 5px;">提示：当前页面课程完成后${hasNextPage ? '将自动翻页' : '无下一页'}</span>
+                
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0; font-size: 14px; color: #4CAF50;">运行日志</h4>
+                        <button id="clear-log-btn" style="background: #f44336; color: white; border: none; border-radius: 4px; padding: 3px 6px; cursor: pointer; font-size: 12px;">清空</button>
+                    </div>
+                    <div id="log-container" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9; font-size: 11px; line-height: 1.4;"></div>
+                </div>
+                
+                <div style="font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
+                    <div>上一页按钮：<span style="color: ${hasPrevPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasPrevPage ? '已找到' : '未找到'}</span></div>
+                    <div>下一页按钮：<span style="color: ${hasNextPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasNextPage ? '已找到' : '未找到'}</span></div>
+                    <div style="margin-top: 5px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <button id="test-prev-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 11px;">测试上一页</button>
+                        <button id="test-next-btn" style="background: #2196F3; color: white; border: none; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 11px;">测试下一页</button>
+                        <span style="flex-basis: 100%; margin-top: 5px;">提示：当前页面课程完成后${hasNextPage ? '将自动翻页' : '无下一页'}</span>
+                    </div>
                 </div>
             </div>
         `;
@@ -206,6 +240,25 @@
             clearInterval(countdownTimer);
             floatingWindow.remove();
             floatingWindow = null;
+        });
+        
+        // 折叠/展开按钮
+        document.getElementById('collapse-btn').addEventListener('click', () => {
+            const content = document.getElementById('window-content');
+            const btn = document.getElementById('collapse-btn');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                btn.textContent = '折叠';
+            } else {
+                content.style.display = 'none';
+                btn.textContent = '展开';
+            }
+        });
+        
+        // 清空日志按钮
+        document.getElementById('clear-log-btn').addEventListener('click', () => {
+            const logContainer = document.getElementById('log-container');
+            logContainer.innerHTML = '';
         });
         
         // 暂停按钮
@@ -397,12 +450,6 @@
      * 开始处理课程
      */
     function startProcessing() {
-        // 关闭漂浮窗口
-        if (floatingWindow) {
-            floatingWindow.remove();
-            floatingWindow = null;
-        }
-        
         // 清除倒计时
         clearInterval(countdownTimer);
         
@@ -465,7 +512,10 @@
      * 设置播放页面的监听
      */
     function setupPlayPageListener() {
+        originalConsoleLog('设置播放页面监听...');
+        
         if (isConsoleOverridden) {
+            originalConsoleLog('console.log已被重写，跳过设置');
             return;
         }
         
@@ -473,10 +523,10 @@
         let hasNextSection = false;
         let hasNextButton = false;
         let playCompleteTimeout = null;
-        let playCheckTimer = null;
         
         // 发送播放完成消息
         function sendPlayCompleteMessage() {
+            originalConsoleLog('发送播放完成消息...');
             if (window.parent !== window) {
                 window.parent.postMessage({ type: 'COURSE_PLAY_COMPLETE' }, '*');
             }
@@ -493,7 +543,7 @@
         }
         
         // 播放完成处理逻辑
-        function handlePlayCompleteLogic() {
+        function handlePlayCompleteLogic(source, timer = null) {
             // 多次检测下一个按钮，确保准确判断
             let nextButtonExists = false;
             for (let i = 0; i < 3; i++) {
@@ -505,18 +555,19 @@
             
             // 检测视频播放状态
             const video = document.querySelector('video');
+            // 如果没有video元素，或者视频已播放到最后1秒，认为视频已播放完成
             const isVideoComplete = !video || (video.readyState >= 3 && video.currentTime >= video.duration - 1);
             
-            // 只有在没有下一节且视频已播放完成时，才执行播放完成的后续动作
-            if (!hasNextSection && !nextButtonExists && isVideoComplete) {
-                // 清除定时器
-                if (playCheckTimer) {
-                    clearInterval(playCheckTimer);
-                    playCheckTimer = null;
-                }
+            // 只有在没有下一节且没有下一个按钮时，才执行播放完成的后续动作
+            // 当没有video元素时，认为视频已播放完成
+            if (!hasNextSection && !nextButtonExists) {
+                originalConsoleLog(`${source}10秒内未检测到"点击下一节"关键词且没有下一个按钮且视频已播放完成，发送播放完成消息`);
+                if (timer) clearInterval(timer);
                 sendPlayCompleteMessage();
+                originalConsoleLog('播放完成，3秒后关闭窗口...');
                 setTimeout(() => window.close(), 3000);
             } else {
+                originalConsoleLog(`${source}10秒内${hasNextSection ? '检测到"点击下一节"关键词' : ''}${hasNextSection && nextButtonExists ? '且' : ''}${nextButtonExists ? '存在下一个按钮' : ''}，继续播放`);
                 hasNextSection = false;
             }
             playCompleteTimeout = null;
@@ -529,6 +580,7 @@
             
             // 检测是否包含"点击下一节"关键词
             if (logText.includes('点击下一节')) {
+                originalConsoleLog('播放页面检测到"点击下一节"关键词，取消播放完成处理');
                 hasNextSection = true;
                 if (playCompleteTimeout) {
                     clearTimeout(playCompleteTimeout);
@@ -538,26 +590,48 @@
             
             // 检测是否包含播放完成关键词
             if (isPlayComplete(logText)) {
+                originalConsoleLog('播放页面检测到播放完成提示');
+                
                 // 设置10秒延迟，等待可能出现的"点击下一节"关键词
                 if (playCompleteTimeout) clearTimeout(playCompleteTimeout);
-                playCompleteTimeout = setTimeout(handlePlayCompleteLogic, 10000);
+                playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('播放页面'), 10000);
             }
         };
         
         isConsoleOverridden = true;
         
         // 定时器检测，防止console.log没有触发
-        playCheckTimer = setInterval(() => {
+        let playCheckTimer = setInterval(() => {
             checkNextButton();
             
             // 检查是否有播放完成的DOM元素
             const completeElement = document.querySelector('.play-complete, .course-finished');
             if (completeElement) {
+                originalConsoleLog('通过DOM元素检测到播放完成');
+                
                 // 设置10秒延迟，等待可能出现的"点击下一节"关键词
                 if (playCompleteTimeout) clearTimeout(playCompleteTimeout);
-                playCompleteTimeout = setTimeout(handlePlayCompleteLogic, 10000);
+                playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('', playCheckTimer), 10000);
             }
         }, config.checkInterval);
+        
+        // 监听窗口关闭事件
+        window.addEventListener('beforeunload', () => {
+            checkNextButton();
+            
+            // 只有在真正完成播放时才发送消息
+            if (playCompleteTimeout === null && !hasNextSection && !hasNextButton) {
+                const video = document.querySelector('video');
+                const isVideoComplete = !video || (video.readyState >= 4 && video.currentTime >= video.duration - 1);
+                
+                if (isVideoComplete) {
+                    originalConsoleLog('窗口即将关闭，视频已播放完成，发送播放完成消息...');
+                    sendPlayCompleteMessage();
+                }
+            }
+        });
+        
+        originalConsoleLog('播放页面监听设置完成');
     }
 
     /**
@@ -779,21 +853,31 @@
         if (event.data && event.data.type === 'COURSE_PLAY_COMPLETE') {
             // 检查是否已经处理过该消息
             if (messageReceived) {
+                originalConsoleLog('消息已处理，忽略重复消息');
                 return;
             }
             
             // 检查处理频率，至少间隔5秒
             const now = Date.now();
             if (now - lastProcessTime < 5000) {
+                originalConsoleLog('处理频率过高，忽略消息');
                 return;
             }
+            
+            originalConsoleLog('收到播放完成消息，准备处理下一个课程');
             
             // 设置消息已处理标记
             messageReceived = true;
             lastProcessTime = now;
             
-            // 处理下一个课程
-            setTimeout(handlePlayComplete, 1000);
+            // 处理下一个课程，添加5秒延迟检查，与setupConsoleListener保持一致
+            // 注意：这里我们无法直接访问setupConsoleListener中的hasNextSection变量
+            // 所以我们需要依赖播放页面的逻辑，确保只有在真正完成时才发送消息
+            // 这里我们添加一个短延迟，确保播放页面的console.log有足够时间处理
+            setTimeout(() => {
+                originalConsoleLog('消息处理延迟结束，执行播放完成处理');
+                handlePlayComplete();
+            }, 1000);
         }
     }
 
