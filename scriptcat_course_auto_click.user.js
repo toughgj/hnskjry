@@ -63,6 +63,24 @@
         
         if (isListPage()) {
             originalConsoleLog('当前是课程列表页面，开始查找目标元素...');
+            
+            // 从localStorage中恢复课程队列
+            const savedQueue = localStorage.getItem('courseQueue');
+            if (savedQueue) {
+                try {
+                    courseQueue = JSON.parse(savedQueue);
+                    originalConsoleLog(`从localStorage中恢复了${courseQueue.length}个未完成课程`);
+                    // 清除localStorage中的课程队列
+                    localStorage.removeItem('courseQueue');
+                    // 直接开始处理下一个课程
+                    startProcessing();
+                    return;
+                } catch (e) {
+                    originalConsoleLog('恢复课程队列失败:', e.message);
+                    localStorage.removeItem('courseQueue');
+                }
+            }
+            
             setupListPage();
             return;
         }
@@ -447,10 +465,7 @@
      * 设置播放页面的监听
      */
     function setupPlayPageListener() {
-        originalConsoleLog('设置播放页面监听...');
-        
         if (isConsoleOverridden) {
-            originalConsoleLog('console.log已被重写，跳过设置');
             return;
         }
         
@@ -458,10 +473,10 @@
         let hasNextSection = false;
         let hasNextButton = false;
         let playCompleteTimeout = null;
+        let playCheckTimer = null;
         
         // 发送播放完成消息
         function sendPlayCompleteMessage() {
-            originalConsoleLog('发送播放完成消息...');
             if (window.parent !== window) {
                 window.parent.postMessage({ type: 'COURSE_PLAY_COMPLETE' }, '*');
             }
@@ -478,7 +493,7 @@
         }
         
         // 播放完成处理逻辑
-        function handlePlayCompleteLogic(source, timer = null) {
+        function handlePlayCompleteLogic() {
             // 多次检测下一个按钮，确保准确判断
             let nextButtonExists = false;
             for (let i = 0; i < 3; i++) {
@@ -490,19 +505,18 @@
             
             // 检测视频播放状态
             const video = document.querySelector('video');
-            // 如果没有video元素，或者视频已播放到最后1秒，认为视频已播放完成
             const isVideoComplete = !video || (video.readyState >= 3 && video.currentTime >= video.duration - 1);
             
-            // 只有在没有下一节且没有下一个按钮时，才执行播放完成的后续动作
-            // 当没有video元素时，认为视频已播放完成
-            if (!hasNextSection && !nextButtonExists) {
-                originalConsoleLog(`${source}10秒内未检测到"点击下一节"关键词且没有下一个按钮且视频已播放完成，发送播放完成消息`);
-                if (timer) clearInterval(timer);
+            // 只有在没有下一节且视频已播放完成时，才执行播放完成的后续动作
+            if (!hasNextSection && !nextButtonExists && isVideoComplete) {
+                // 清除定时器
+                if (playCheckTimer) {
+                    clearInterval(playCheckTimer);
+                    playCheckTimer = null;
+                }
                 sendPlayCompleteMessage();
-                originalConsoleLog('播放完成，3秒后关闭窗口...');
                 setTimeout(() => window.close(), 3000);
             } else {
-                originalConsoleLog(`${source}10秒内${hasNextSection ? '检测到"点击下一节"关键词' : ''}${hasNextSection && nextButtonExists ? '且' : ''}${nextButtonExists ? '存在下一个按钮' : ''}，继续播放`);
                 hasNextSection = false;
             }
             playCompleteTimeout = null;
@@ -515,7 +529,6 @@
             
             // 检测是否包含"点击下一节"关键词
             if (logText.includes('点击下一节')) {
-                originalConsoleLog('播放页面检测到"点击下一节"关键词，取消播放完成处理');
                 hasNextSection = true;
                 if (playCompleteTimeout) {
                     clearTimeout(playCompleteTimeout);
@@ -525,48 +538,26 @@
             
             // 检测是否包含播放完成关键词
             if (isPlayComplete(logText)) {
-                originalConsoleLog('播放页面检测到播放完成提示');
-                
                 // 设置10秒延迟，等待可能出现的"点击下一节"关键词
                 if (playCompleteTimeout) clearTimeout(playCompleteTimeout);
-                playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('播放页面'), 10000);
+                playCompleteTimeout = setTimeout(handlePlayCompleteLogic, 10000);
             }
         };
         
         isConsoleOverridden = true;
         
         // 定时器检测，防止console.log没有触发
-        let playCheckTimer = setInterval(() => {
+        playCheckTimer = setInterval(() => {
             checkNextButton();
             
             // 检查是否有播放完成的DOM元素
             const completeElement = document.querySelector('.play-complete, .course-finished');
             if (completeElement) {
-                originalConsoleLog('通过DOM元素检测到播放完成');
-                
                 // 设置10秒延迟，等待可能出现的"点击下一节"关键词
                 if (playCompleteTimeout) clearTimeout(playCompleteTimeout);
-                playCompleteTimeout = setTimeout(() => handlePlayCompleteLogic('', playCheckTimer), 10000);
+                playCompleteTimeout = setTimeout(handlePlayCompleteLogic, 10000);
             }
         }, config.checkInterval);
-        
-        // 监听窗口关闭事件
-        window.addEventListener('beforeunload', () => {
-            checkNextButton();
-            
-            // 只有在真正完成播放时才发送消息
-            if (playCompleteTimeout === null && !hasNextSection && !hasNextButton) {
-                const video = document.querySelector('video');
-                const isVideoComplete = !video || (video.readyState >= 4 && video.currentTime >= video.duration - 1);
-                
-                if (isVideoComplete) {
-                    originalConsoleLog('窗口即将关闭，视频已播放完成，发送播放完成消息...');
-                    sendPlayCompleteMessage();
-                }
-            }
-        });
-        
-        originalConsoleLog('播放页面监听设置完成');
     }
 
     /**
@@ -714,12 +705,16 @@
         // 重置消息接收标记，以便处理下一个消息
         messageReceived = false;
         
-        // 播放完成后等待2秒提示，然后再等待8秒处理下一个课程，总共10秒
-        originalConsoleLog('当前课程播放完成，2秒后开始播放下一个课程...');
+        // 播放完成后等待2秒提示，然后刷新页面，防止页面卡死
+        originalConsoleLog('当前课程播放完成，2秒后刷新页面...');
         setTimeout(() => {
-            originalConsoleLog('准备开始播放下一个课程...');
-            // 处理下一个课程，让列表界面有足够时间加载和更新
-            setTimeout(processNextCourse, 8000);
+            // 保存当前的课程队列到localStorage
+            if (courseQueue.length > 0) {
+                localStorage.setItem('courseQueue', JSON.stringify(courseQueue));
+                originalConsoleLog('已保存课程队列到localStorage，准备刷新页面...');
+            }
+            // 刷新页面
+            location.reload();
         }, 2000);
     }
 
@@ -784,31 +779,21 @@
         if (event.data && event.data.type === 'COURSE_PLAY_COMPLETE') {
             // 检查是否已经处理过该消息
             if (messageReceived) {
-                originalConsoleLog('消息已处理，忽略重复消息');
                 return;
             }
             
             // 检查处理频率，至少间隔5秒
             const now = Date.now();
             if (now - lastProcessTime < 5000) {
-                originalConsoleLog('处理频率过高，忽略消息');
                 return;
             }
-            
-            originalConsoleLog('收到播放完成消息，准备处理下一个课程');
             
             // 设置消息已处理标记
             messageReceived = true;
             lastProcessTime = now;
             
-            // 处理下一个课程，添加5秒延迟检查，与setupConsoleListener保持一致
-            // 注意：这里我们无法直接访问setupConsoleListener中的hasNextSection变量
-            // 所以我们需要依赖播放页面的逻辑，确保只有在真正完成时才发送消息
-            // 这里我们添加一个短延迟，确保播放页面的console.log有足够时间处理
-            setTimeout(() => {
-                originalConsoleLog('消息处理延迟结束，执行播放完成处理');
-                handlePlayComplete();
-            }, 1000);
+            // 处理下一个课程
+            setTimeout(handlePlayComplete, 1000);
         }
     }
 
