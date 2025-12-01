@@ -8,7 +8,7 @@
 // @grant        none
 // @updateURL    https://github.com/toughgj/hnskjry/blob/main/scriptcat_course_auto_click.user.js
 // @downloadURL  https://github.com/toughgj/hnskjry/blob/main/scriptcat_course_auto_click.user.js
-// @homepage     https://github.com/toughgj/hnskjry
+// @homepageURL     https://github.com/toughgj/hnskjry
 // ==/UserScript==
 
 (function() {
