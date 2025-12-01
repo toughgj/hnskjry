@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         列表页自动播放未完成课程（串行处理）
 // @namespace    http://tampermonkey.net/
-// @version      0.6
+// @version      0.7
 // @description  串行处理未完成课程，监听播放完成事件，一次只打开一个页面
 // @author       toughgj
 // @match        https://zdkj.v.zzu.edu.cn/*
@@ -51,7 +51,6 @@
         isPaused: false, // 是否暂停
         floatingWindowObserver: null, // 漂浮窗口的MutationObserver
         floatingWindowDragHandlers: null, // 漂浮窗口的拖拽事件处理函数
-        originalLog: null, // 漂浮窗口重写的console.log
         playPageResources: null // 播放页面资源
     };
 
@@ -188,14 +187,6 @@
                     </div>
                 </div>
                 
-                <div style="margin-bottom: 15px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 style="margin: 0; font-size: 14px; color: #4CAF50;">运行日志</h4>
-                        <button id="clear-log-btn" style="background: #f44336; color: white; border: none; border-radius: 4px; padding: 3px 6px; cursor: pointer; font-size: 12px;">清空</button>
-                    </div>
-                    <div id="log-container" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9; font-size: 11px; line-height: 1.4;"></div>
-                </div>
-                
                 <div style="font-size: 12px; color: #666; border-top: 1px solid #eee; padding-top: 10px;">
                     <div>上一页按钮：<span style="color: ${hasPrevPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasPrevPage ? '已找到' : '未找到'}</span></div>
                     <div>下一页按钮：<span style="color: ${hasNextPage ? '#4CAF50' : '#f44336'}; font-weight: bold;">${hasNextPage ? '已找到' : '未找到'}</span></div>
@@ -288,33 +279,6 @@
             childList: true,
             subtree: false // 不观察子树，只观察直接子节点
         });
-        
-        // 重写console.log，将日志显示到悬浮窗
-        // 优化：减少不必要的日志处理，优化格式化逻辑
-        appState.originalLog = console.log;
-        console.log = function(...args) {
-            // 先调用原始console.log，避免影响正常功能
-            appState.originalLog.apply(console, args);
-            
-            // 优化：只在漂浮窗口存在时处理日志
-            if (appState.floatingWindow) {
-                // 将日志添加到悬浮窗
-                const logContainer = appState.floatingWindow.querySelector('#log-container');
-                if (logContainer) {
-                    const logEntry = document.createElement('div');
-                    // 优化：使用模板字符串，提高性能
-                    logEntry.textContent = `${new Date().toLocaleTimeString()}: ${args.join(' ')}`;
-                    logContainer.appendChild(logEntry);
-                    // 滚动到底部
-                    logContainer.scrollTop = logContainer.scrollHeight;
-                    
-                    // 限制日志数量，最多显示30条，减少内存占用
-                    if (logContainer.children.length > 30) {
-                        logContainer.removeChild(logContainer.firstChild);
-                    }
-                }
-            }
-        };
     }
     
     /**
@@ -349,12 +313,6 @@
             appState.floatingWindowObserver = null;
         }
         
-        // 恢复原始console.log
-        if (appState.originalLog) {
-            console.log = appState.originalLog;
-            appState.originalLog = null;
-        }
-        
         // 移除漂浮窗口元素
         if (appState.floatingWindow) {
             appState.floatingWindow.remove();
@@ -385,12 +343,6 @@
                     content.style.display = 'none';
                     target.textContent = '展开';
                 }
-            }
-            
-            // 清空日志按钮
-            else if (target.id === 'clear-log-btn') {
-                const logContainer = document.getElementById('log-container');
-                logContainer.innerHTML = '';
             }
             
             // 暂停按钮
@@ -1114,12 +1066,6 @@
         if (appState.isConsoleOverridden) {
             console.log = originalConsoleLog;
             appState.isConsoleOverridden = false;
-        }
-        
-        // 恢复漂浮窗口的原始console.log
-        if (appState.originalLog) {
-            console.log = appState.originalLog;
-            appState.originalLog = null;
         }
         
         // 关闭当前窗口（如果存在）
